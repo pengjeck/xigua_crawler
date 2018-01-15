@@ -99,3 +99,13 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+
+# xigua_crawler project
+
+test.json
+log
+tool/test.mp4
+tool/clipboard.txt
+tool/out.txt
+.idea/
