@@ -1,16 +1,17 @@
 # coding: utf-8
 import requests
 import re
+from config import logger, XConfig
+from utilities import record_data
+import time
 
 headers = {
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-    'Accept-Encoding': 'gzip, deflate',
-    'Accept-Language': 'zh-CN,zh;q=0.9,zh-TW;q=0.8,en;q=0.7',
-    'Cache-Control': 'max-age=0',
-    'Connection': 'keep-alive',
-    'Host': 'm.ixigua.com',
-    'Upgrade-Insecure-Requests': '1',
-    'User-Agent': 'Mozilla/5.0 (Linux; Android 5.0; SM-G900P Build/LRX21T) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.108 Mobile Safari/537.36',
+    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+    'accept-encoding': 'gzip, deflate, br',
+    'accept-language': 'en-US,en;q=0.9,pt;q=0.8,zh-CN;q=0.7,zh;q=0.6',
+    'cache-control': 'max-age=0',
+    'upgrade-insecure-requests': '1',
+    'user-agent': 'Mozilla/5.0 (Linux; Android 5.0; SM-G900P Build/LRX21T) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Mobile Safari/537.36',
 }
 
 cookies = {
@@ -45,9 +46,9 @@ def test_be_hot_data():
     r = requests.get(base_url,
                      params=params,
                      headers=headers,
-                     cookies=cookies)
-
-    print(r.apparent_encoding)  # 这个操作可能是非常耗时的，如果可以的话，记录一次下次就直接替换掉
+                     cookies=cookies, timeout=3)
+    record_data(r.text, type='json')
+    # print(r.apparent_encoding)  # 这个操作可能是非常耗时的，如果可以的话，记录一次下次就直接替换掉
 
 
 def test_user_page(page_type='m'):
@@ -64,20 +65,62 @@ def test_user_page(page_type='m'):
         'format': 'html'
     }
     base_url = 'https://m.ixigua.com/video/app/user/home/'
+    try:
+        req = requests.get(base_url,
+                           params=params,
+                           # cookies=cookies,
+                           headers=headers,
+                           timeout=3)
+        return 1
+    except:
+        return -1
 
-    req = requests.get(base_url, params=params, cookies=cookies, headers=headers)
 
-    # 其实测试代码可以不用写得那么完整
-    res = req.text.find('user-vip')
-    if res == -1:
-        print('this user is not pro!')
-    else:
-        print('this user is pro')
+def test_html_user_page():
+    params = {
+        'to_user_id': '5567057918',
+        'format': 'json'
+    }
+    base_url = 'https://m.ixigua.com/video/app/user/home/'
+    try:
+        req = requests.get(base_url,
+                           params=params,
+                           cookies=cookies,
+                           headers=headers,
+                           timeout=3)
+        return 1
+    except:
+        return -1
 
-    pos = req.text.find('人关注')
-    followers = re.search('\d+$', req.text[pos - 15:pos]).group(0)
-    print(followers)
 
-    
+def test_video_page():
+    """
+    测试视频页面是不是有禁止访问的情况
+    :return:
+    """
+    """setup"""
+    video_url = 'https://www.ixigua.com/a{}'.format('6512907124689863172')
+    error_counter = 0
+    try:
+        req = requests.get(video_url,
+                           timeout=XConfig.TIMEOUT)
+        if req.status_code == 403:
+            error_counter += 1
 
-test_user_page()
+    except requests.HTTPError:
+        error_counter += 1
+    except requests.Timeout:
+        error_counter += 1
+    except AttributeError:
+        error_counter += 1
+
+
+count = 0
+all = 0
+while True:
+    all += 1
+    res = test_user_page()
+    if res == 1:
+        count += 1
+    print("{} / {}".format(count, all))
+    time.sleep(0.5)
