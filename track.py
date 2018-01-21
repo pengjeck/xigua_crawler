@@ -23,35 +23,37 @@ import requests
 import json
 from config import logger, XConfig
 from multiprocessing import Pool
-from database import SqlXigua
+from database import SqlXigua, AllUser
 from xigua import VideoPage
 from tempor import Tempor
 from datetime import datetime
 import time
 import sqlite3
 from apscheduler.schedulers.blocking import BlockingScheduler
-from utilities import record_data
 import sys
-
-db = SqlXigua()
 
 
 class Instance:
     """
     抽取17000个用于跟踪的用户：真的要这么多吗？
     """
-    all_user = [user[0] for user in db.get_all_users()]
 
-    def __init__(self):
+    def __init__(self, i):
         self._base_user_url = 'https://m.ixigua.com/video/app/user/home/'
         self.new_videos = []
         self._pool_size = 70
         self.headers = XConfig.HEADERS_1
         self.proxy = None
         self.proxies_use = False
+        self.db = SqlXigua(i)
+        self.all_user = []
 
         # 已经把第一次的记录放进去了
         self.get_new_videos()
+
+    def load_all_user(self):
+        with open(XConfig.USER_IDS_FILE, 'r') as f:
+            self.all_user = f.readlines()
 
     def get_users_url(self, user_ids):
         """
@@ -100,10 +102,16 @@ class Instance:
         return base_url[:-1]
 
     def get_new_videos(self):
+        """
+        获取最新的视频（全量搜索）
+        :return:
+        """
         for i in range(int(len(self.all_user) / self._pool_size)):
             with Pool(self._pool_size) as p:
                 results = p.map(self._get_new_video,
                                 self.all_user[i * self._pool_size: (i + 1) * self._pool_size])
+
+            # 是否已经更换过一次代理了
             did = False
             for res in results:
                 # 更新代理
@@ -144,10 +152,11 @@ class Instance:
                        views=0, likes=0, dislikes=0,
                        comments=0)
             try:
-                db.insert(t, is_commit=False)
+                self.db.insert(t, is_commit=False)
             except sqlite3.InterfaceError:
                 print(video_id)
-        db.conn.commit()
+        del self.all_user
+        self.db.conn.commit()
 
     @staticmethod
     def get_proxies(count=5):
@@ -413,27 +422,36 @@ class Instance:
             t = Tempor(video_page.video_id, now,
                        video_page.views, video_page.likes,
                        video_page.dislikes, video_page.comments)
-            db.insert(t, is_commit=False)
+            self.db.insert(t, is_commit=False)
 
-
-job_instance = None
+    def __del__(self):
+        self.db.conn.close()
 
 
 def tick():
     job_instance.track()
 
 
-def single_scheduler():
+def single_scheduler(i):
     global job_instance
-    job_instance = Instance()
-    scheduler = BlockingScheduler()
-    scheduler.add_executor('processpool')
-    scheduler.add_job(tick, 'interval', seconds=XConfig.TRACK_SPAN)
-    try:
-        scheduler.start()
-    except (KeyboardInterrupt, SystemExit):
-        print('process has exit!!!')
-        scheduler.shutdown()
+
+    job_instance = Instance(i)
+    if len(job_instance.new_videos) < 120:
+        print('video number too small, so exit！！！')
+        # 退出
+        return
+    else:
+        scheduler = BlockingScheduler()
+        scheduler.add_executor('processpool')
+        scheduler.add_job(tick, 'interval', seconds=XConfig.TRACK_SPAN)
+        try:
+            scheduler.start()
+        except (KeyboardInterrupt, SystemExit):
+            print('process has exit!!!')
+            scheduler.shutdown()
 
 
-single_scheduler()
+job_instance = None
+index = int(sys.argv[1])
+# index = 0
+single_scheduler(index)

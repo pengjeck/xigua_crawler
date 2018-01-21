@@ -13,10 +13,11 @@ class XConfig:
     """
     youtube crawler config file
     """
-    DB_FILE = '/home/pj/datum/GraduationProject/dataset/xigua/xigua.db'
+    USER_IDS_FILE = '/home/pj/datum/GraduationProject/dataset/xigua/user_ids.txt'
     VIDEO_AVATAR_PATH = '/home/pj/datum/GraduationProject/dataset/xigua/video_avatar/'
     USER_AVATAR_PATH = '/home/pj/datum/GraduationProject/dataset/xigua/user_avatar/'
     LOGGING_PATH = '/home/pj/datum/GraduationProject/dataset/xigua/log'
+    INDEX_DB_FILE = '/home/pj/datum/GraduationProject/dataset/xigua/database/xigua{}.db'
 
     IS_TESTING = True
 

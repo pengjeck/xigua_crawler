@@ -6,7 +6,7 @@ import requests
 import json
 import re
 import sqlite3
-from database import SqlXigua
+from database import SqlXigua, AllUser
 from config import XConfig, logging
 from utilities import record_data
 import time
@@ -19,7 +19,7 @@ from user import User
 
 class RequestPrepare:
     def __init__(self):
-        self.db = SqlXigua()
+        self.db = AllUser()
         self.params = {
             'tag': 'video_new',
             'ac': 'wap',
