@@ -23,7 +23,7 @@ import requests
 import json
 from config import logger, XConfig
 from multiprocessing import Pool
-from database import SqlXigua, AllUser
+from database import SqlXigua
 from xigua import VideoPage
 from tempor import Tempor
 from datetime import datetime
@@ -31,6 +31,7 @@ import time
 import sqlite3
 from apscheduler.schedulers.blocking import BlockingScheduler
 import sys
+import atexit
 
 
 class Instance:
@@ -38,22 +39,16 @@ class Instance:
     抽取17000个用于跟踪的用户：真的要这么多吗？
     """
 
-    def __init__(self, i):
+    def __init__(self):
         self._base_user_url = 'https://m.ixigua.com/video/app/user/home/'
         self.new_videos = []
         self._pool_size = 70
         self.headers = XConfig.HEADERS_1
         self.proxy = None
         self.proxies_use = False
-        self.db = SqlXigua(i)
-        self.all_user = []
 
         # 已经把第一次的记录放进去了
         self.get_new_videos()
-
-    def load_all_user(self):
-        with open(XConfig.USER_IDS_FILE, 'r') as f:
-            self.all_user = f.readlines()
 
     def get_users_url(self, user_ids):
         """
@@ -106,10 +101,10 @@ class Instance:
         获取最新的视频（全量搜索）
         :return:
         """
-        for i in range(int(len(self.all_user) / self._pool_size)):
+        for i in range(int(len(all_user) / self._pool_size)):
             with Pool(self._pool_size) as p:
-                results = p.map(self._get_new_video,
-                                self.all_user[i * self._pool_size: (i + 1) * self._pool_size])
+                part_users = all_user[i * self._pool_size: (i + 1) * self._pool_size]
+                results = p.map(self._get_new_video, part_users)
 
             # 是否已经更换过一次代理了
             did = False
@@ -152,11 +147,10 @@ class Instance:
                        views=0, likes=0, dislikes=0,
                        comments=0)
             try:
-                self.db.insert(t, is_commit=False)
+                db.insert(t, is_commit=False)
             except sqlite3.InterfaceError:
                 print(video_id)
-        del self.all_user
-        self.db.conn.commit()
+        db.conn.commit()
 
     @staticmethod
     def get_proxies(count=5):
@@ -186,11 +180,11 @@ class Instance:
                 })
 
             # 选择最好的代理。
-            index = Instance.get_best_proxy(proxy_pool)
-            if index == -1:
+            proxy_index = Instance.get_best_proxy(proxy_pool)
+            if proxy_index == -1:
                 return None
             else:
-                return proxy_pool[index]
+                return proxy_pool[proxy_index]
         except (requests.HTTPError, requests.ConnectionError,
                 requests.Timeout, json.JSONDecodeError):
             logger.error('network error when get proxy error!')
@@ -417,27 +411,26 @@ class Instance:
             video_pages = p.map(VideoPage, self.new_videos)
         for video_page in video_pages:
             if not video_page.is_finish:
-                pass
+                continue
             # assert isinstance(video_page, VideoPage)
             t = Tempor(video_page.video_id, now,
                        video_page.views, video_page.likes,
                        video_page.dislikes, video_page.comments)
-            self.db.insert(t, is_commit=False)
-
-    def __del__(self):
-        self.db.conn.close()
+            db.insert(t, is_commit=False)
+        db.conn.commit()
 
 
 def tick():
     job_instance.track()
 
 
-def single_scheduler(i):
+def single_scheduler():
     global job_instance
-
-    job_instance = Instance(i)
+    global all_user
+    job_instance = Instance()
+    del all_user
     if len(job_instance.new_videos) < 120:
-        print('video number too small, so exit！！！')
+        print('video number too small = {}, so exit！！！'.format(len(job_instance.new_videos)))
         # 退出
         return
     else:
@@ -451,7 +444,45 @@ def single_scheduler(i):
             scheduler.shutdown()
 
 
+def load_all_user():
+    res = []
+    with open(XConfig.USER_IDS_FILE, 'r') as f:
+        for line in f:
+            res.append(line[:-1])
+    return res
+
+
+def at_exit():
+    global db
+    print('process exited!!')
+    db.conn.close()
+
+
+# region test track
+# video_ids = ["6513037259028038158",
+#              "6513433089388053000",
+#              "6513472844448402702",
+#              "6513471677307814403",
+#              "6513150551188832775",
+#              "6513142054137102855",
+#              "6513472347482096141",
+#              "6513122203721007620",
+#              "6513471946015900168",
+#              "6513472157815669252"]
+# index = 0
+# db = SqlXigua(index)
+# all_user = load_all_user()
+#
+# i = Instance()
+# i.new_videos = video_ids
+# i.track()
+# endregion
+
+atexit.register(at_exit)
+
 job_instance = None
+all_user = load_all_user()
 index = int(sys.argv[1])
 # index = 0
-single_scheduler(index)
+db = SqlXigua(index)
+single_scheduler()
