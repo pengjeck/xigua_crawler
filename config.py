@@ -75,8 +75,6 @@ class XConfig:
         '_ba': 'BA0.2-20171227-51225-0QOfevbdMYurWcR3FEl'  # 两年
     }
 
-
-
     @staticmethod
     def logging_file():
         """
@@ -87,12 +85,8 @@ class XConfig:
 
 logger = logging.getLogger('base')
 formatter = logging.Formatter('%(asctime)s - %(message)s')
-# sh = logging.StreamHandler()
-# sh.setLevel(logging.ERROR)
-# sh.setFormatter(formatter)
 
 fh = logging.FileHandler(XConfig.logging_file())
 fh.setLevel(logging.INFO)
 fh.setFormatter(formatter)
 logger.addHandler(fh)
-# logger.addHandler(sh)

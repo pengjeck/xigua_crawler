@@ -47,7 +47,8 @@ class Instance:
         self.new_videos = []
         self._pool_size = 70
         self.headers = XConfig.HEADERS_1
-        self.proxies = None
+        self.proxy = None
+        self.proxies_use = False
 
         # 已经把第一次的记录放进去了
         self.get_new_videos()
@@ -101,10 +102,42 @@ class Instance:
     def get_new_videos(self):
         for i in range(int(len(self.all_user) / self._pool_size)):
             with Pool(self._pool_size) as p:
-                video_id_ss = p.map(self._get_new_video,
-                                    self.all_user[i * self._pool_size: (i + 1) * self._pool_size])
-            for video_ids in video_id_ss:
-                self.new_videos.extend(video_ids)
+                results = p.map(self._get_new_video,
+                                self.all_user[i * self._pool_size: (i + 1) * self._pool_size])
+            did = False
+            for res in results:
+                # 更新代理
+                if not did:
+                    if res['code'] == 1:
+                        if self.proxies_use:
+                            if self.test_no_proxy():
+                                self.proxies_use = False
+                            else:
+                                proxy = Instance.get_proxies(count=4)
+                                if proxy is None:
+                                    self.proxy = Instance.get_proxies(count=4)
+                                    if self.proxy is None:
+                                        self.proxies_use = False
+                                    else:
+                                        self.proxies_use = True
+                                else:
+                                    self.proxy = proxy
+                                    self.proxies_use = True
+                        else:
+                            proxy = Instance.get_proxies(count=4)
+                            if proxy is None:
+                                self.proxy = Instance.get_proxies(count=4)
+                                if self.proxy is None:
+                                    self.proxies_use = False
+                                else:
+                                    self.proxies_use = True
+                            else:
+                                self.proxy = proxy
+                                self.proxies_use = True
+                    did = True
+
+                if len(res['video_ids']) != 0:
+                    self.new_videos.extend(res['video_ids'])
 
         for video_id in self.new_videos:
             t = Tempor(video_id, datetime.now(),
@@ -116,11 +149,62 @@ class Instance:
                 print(video_id)
         db.conn.commit()
 
-    def switch_headers(self):
-        if len(self.headers['user-agent']) == len(XConfig.HEADERS_1['user-agent']):
-            self.headers = XConfig.HEADERS_2
-        else:
-            self.headers = XConfig.HEADERS_1
+    @staticmethod
+    def get_proxies(count=5):
+        base_url = 'http://www.mogumiao.com/proxy/api/get_ip_al'
+        params = {
+            'appKey': '7f52750cc46548b7b316bfaf73792f70',
+            'count': count,
+            'expiryDate': 5,
+            'format': 1
+        }
+        try:
+            r = requests.get(base_url, params)
+            if r.status_code != 200:
+                logger.error('cannot get proxy from {}'.format(base_url))
+                return
+
+            data = json.loads(r.text)
+            if data['code'] != '0':
+                logger.error('{} server error'.format(base_url))
+                return
+            proxy_pool = []
+            for item in data['msg']:
+                proxy = 'http://{}:{}'.format(item['ip'], item['port'])
+                proxy_pool.append({
+                    'http': proxy,
+                    'https': proxy
+                })
+
+            # 选择最好的代理。
+            index = Instance.get_best_proxy(proxy_pool)
+            if index == -1:
+                return None
+            else:
+                return proxy_pool[index]
+        except (requests.HTTPError, requests.ConnectionError,
+                requests.Timeout, json.JSONDecodeError):
+            logger.error('network error when get proxy error!')
+            return
+        except KeyError:
+            logger.error('proxies decode error')
+            return
+
+    @staticmethod
+    def get_best_proxy(proxies):
+        # 给代理评分
+        min_index_proxy = -1
+        min_score = 10000
+        for (index, proxy) in enumerate(proxies):
+            score = Instance.is_valid_proxy(proxy)
+            if score == 1000:
+                continue
+            else:
+                if score < min_score:
+                    min_index_proxy = index
+                    min_score = score
+
+        return min_index_proxy
 
     @staticmethod
     def get_proxy(count=1):
@@ -141,6 +225,7 @@ class Instance:
             if data['code'] != '0':
                 logger.error('{} server error'.format(base_url))
                 return res
+
             proxy = 'http://{}:{}'.format(data['msg'][0]['ip'], data['msg'][0]['port'])
             res['http'] = proxy
             res['https'] = proxy
@@ -179,16 +264,17 @@ class Instance:
             'utm_campaign': 'client_share',
         }
         try:
+            beg_time = time.time()
             requests.get(url=xigua_url,
                          params=xigua_params,
                          headers=xigua_headers,
                          proxies=proxy,
                          timeout=timeout)
-            return True
+            return time.time() - beg_time
         except requests.exceptions.ProxyError:
-            return False
+            return 1000  # 意味着是完全没有用的代理
         except requests.Timeout:
-            return False
+            return 1000
 
     @staticmethod
     def test_no_proxy(timeout=2):
@@ -225,7 +311,7 @@ class Instance:
 
     @staticmethod
     def update_proxy():
-        for i in range(20):
+        for i in range(10):
             if Instance.test_no_proxy():
                 # 经过测试，没有代理是可以正常访问的
                 return None  # 设置没有代理的模式
@@ -234,26 +320,8 @@ class Instance:
             if Instance.is_valid_proxy(proxy):
                 # 测试代理是否有效，如果有效的话返回该代理。
                 return proxy
-        # 20个代理都没用就gg了
+        # 10个代理都没用就gg了
         return None
-
-    def occur_403(self, times=0):
-        """
-        错误
-        :param times:连续请求的第几次出现403错误
-        :return:
-        """
-        if times == 1:
-            self.switch_headers()  # 换一个头部心事看看能不能用
-            return True
-        elif times == 2:
-            self.proxies = Instance.update_proxy()
-            if self.proxies is None:
-                return False
-            else:
-                return True
-        elif times == 3:
-            return False
 
     def _get_new_video(self, user_id):
         """
@@ -273,54 +341,33 @@ class Instance:
             'utm_medium': 'android',
             'utm_campaign': 'client_share',
         }
-        video_ids = []
+        res = {
+            'code': 0,
+            'video_ids': []
+        }
         try:
-            if self.proxies is None:
+            if not self.proxies_use:
                 req = requests.get(base_user_url,
                                    params=params,
                                    headers=self.headers,
                                    timeout=XConfig.TIMEOUT)
-                if req.status_code == 403:
-                    self.occur_403(1)
-                    req = requests.get(base_user_url,
-                                       params=params,
-                                       headers=self.headers,
-                                       timeout=XConfig.TIMEOUT)
-                    if req.status_code == 403:
-                        self.occur_403(2)
-                        req = requests.get(base_user_url,
-                                           params=params,
-                                           headers=self.headers,
-                                           proxies=self.proxies,
-                                           timeout=XConfig.TIMEOUT)
+
             else:
                 req = requests.get(base_user_url,
                                    params=params,
-                                   proxies=self.proxies,
+                                   proxies=self.proxy,
                                    headers=self.headers,
                                    timeout=XConfig.TIMEOUT)
-                if req.status_code == 403:
-                    self.occur_403(1)  # 更新头部信息。
-                    req = requests.get(base_user_url,
-                                       params=params,
-                                       headers=self.headers,
-                                       proxies=self.proxies,
-                                       timeout=XConfig.TIMEOUT)
-                    if req.status_code == 403:
-                        self.occur_403(2)  # 会更新代理。
-                        req = requests.get(base_user_url,
-                                           params=params,
-                                           headers=self.headers,
-                                           proxies=self.proxies,
-                                           timeout=XConfig.TIMEOUT)
 
             if req.status_code == 403:
-                logger.error('forbidden by ixigua.com!!!')
-                return []
+                res['code'] = 1  # 意味着要更换代理
+                return res
 
             data = json.loads(req.text.encode('utf-8'), encoding='ascii')
             if data['message'] != 'success':
                 logger.info('do not success when request user page!')
+                res['code'] = 2  # 西瓜服务器出现了问题
+                return res
 
             now = time.time()
             for item_v in data['data']:
@@ -328,25 +375,32 @@ class Instance:
                     # 五分钟以内上传的视频都可以算作新视频
                     if now - int(item_v['publish_time']) < 360:
                         video_id = item_v['group_id_str']
-                        video_ids.append(video_id)
+                        res['video_ids'].append(video_id)
                 except KeyError as e:
                     logger.error('cannot parse video_id. reason:{}'.format(e))
-            return video_ids
+                    pass
+
+            return res
         except requests.Timeout:
             logger.error('time out request user page')
-            return []
+            res['code'] = 3  # 网络问题
+            return res
         except requests.ConnectionError:
             logger.error('connection error occur when request user ')
-            return []
+            res['code'] = 3
+            return res
         except requests.HTTPError:
             logger.error('http error when request user page')
-            return []
+            res['code'] = 3
+            return res
         except json.JSONDecodeError as e:
             logger.error('cannot decode response data to json object {}'.format(e))
-            return []
+            res['code'] = 3
+            return res
         except KeyError as e:
             logger.error('cannot parse user info. reason:{}'.format(e))
-            return []
+            res['code'] = 4  # 数据解析出现错误
+            return res
 
     def track(self):
         now = datetime.now()
@@ -362,27 +416,24 @@ class Instance:
             db.insert(t, is_commit=False)
 
 
-while True:
-    beg = time.time()
-    ex = Instance()
-    print("{} video cost {}".format(len(ex.new_videos), time.time() - beg))
+job_instance = None
 
-# job_instance = None
-#
-# def tick():
-#     job_instance.track()
-#
-# def single_scheduler(index):
-#     global job_instance
-#     job_instance = Instance()
-#     scheduler = BlockingScheduler()
-#     scheduler.add_executor('processpool')
-#     scheduler.add_job(tick, 'interval', seconds=XConfig.TRACK_SPAN)
-#     try:
-#         scheduler.start()
-#     except (KeyboardInterrupt, SystemExit):
-#         print('process has exit!!!')
-#         scheduler.shutdown()
-#
-#
-# single_scheduler()
+
+def tick():
+    job_instance.track()
+
+
+def single_scheduler():
+    global job_instance
+    job_instance = Instance()
+    scheduler = BlockingScheduler()
+    scheduler.add_executor('processpool')
+    scheduler.add_job(tick, 'interval', seconds=XConfig.TRACK_SPAN)
+    try:
+        scheduler.start()
+    except (KeyboardInterrupt, SystemExit):
+        print('process has exit!!!')
+        scheduler.shutdown()
+
+
+single_scheduler()
