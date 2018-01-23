@@ -20,6 +20,7 @@
 # endregion <<<<<<<<<<< sampling <<<<<<<<<<
 
 import requests
+from itertools import product
 import json
 from config import logger, XConfig
 from multiprocessing import Pool
@@ -48,7 +49,7 @@ class Instance:
         self.proxies_use = False
 
         # 已经把第一次的记录放进去了
-        self.get_new_videos()
+        # self.get_new_videos()
 
     def get_users_url(self, user_ids):
         """
@@ -107,40 +108,40 @@ class Instance:
                 results = p.map(self._get_new_video, part_users)
 
             # 是否已经更换过一次代理了
-            did = False
+            need_change_proxy = False
             for res in results:
-                # 更新代理
-                if not did:
-                    if res['code'] == 1:
-                        if self.proxies_use:
-                            if self.test_no_proxy():
-                                self.proxies_use = False
-                            else:
-                                proxy = Instance.get_proxies(count=4)
-                                if proxy is None:
-                                    self.proxy = Instance.get_proxies(count=4)
-                                    if self.proxy is None:
-                                        self.proxies_use = False
-                                    else:
-                                        self.proxies_use = True
-                                else:
-                                    self.proxy = proxy
-                                    self.proxies_use = True
-                        else:
-                            proxy = Instance.get_proxies(count=4)
-                            if proxy is None:
-                                self.proxy = Instance.get_proxies(count=4)
-                                if self.proxy is None:
-                                    self.proxies_use = False
-                                else:
-                                    self.proxies_use = True
-                            else:
-                                self.proxy = proxy
-                                self.proxies_use = True
-                    did = True
+                if res['code'] == 1:
+                    need_change_proxy = True
 
                 if len(res['video_ids']) != 0:
                     self.new_videos.extend(res['video_ids'])
+
+            if need_change_proxy:
+                if self.proxies_use:
+                    if self.test_no_proxy():
+                        self.proxies_use = False
+                    else:
+                        proxy = Instance.get_proxies(count=4)
+                        if proxy is None:
+                            self.proxy = Instance.get_proxies(count=4)
+                            if self.proxy is None:
+                                self.proxies_use = False
+                            else:
+                                self.proxies_use = True
+                        else:
+                            self.proxy = proxy
+                            self.proxies_use = True
+                else:
+                    proxy = Instance.get_proxies(count=4)
+                    if proxy is None:
+                        self.proxy = Instance.get_proxies(count=4)
+                        if self.proxy is None:
+                            self.proxies_use = False
+                        else:
+                            self.proxies_use = True
+                    else:
+                        self.proxy = proxy
+                        self.proxies_use = True
 
         for video_id in self.new_videos:
             t = Tempor(video_id, datetime.now(),
@@ -153,7 +154,7 @@ class Instance:
         db.conn.commit()
 
     @staticmethod
-    def get_proxies(count=5):
+    def get_proxies(count=8):
         base_url = 'http://www.mogumiao.com/proxy/api/get_ip_al'
         params = {
             'appKey': '7f52750cc46548b7b316bfaf73792f70',
@@ -198,13 +199,13 @@ class Instance:
         # 给代理评分
         min_index_proxy = -1
         min_score = 10000
-        for (index, proxy) in enumerate(proxies):
+        for (i, proxy) in enumerate(proxies):
             score = Instance.is_valid_proxy(proxy)
             if score == 1000:
                 continue
             else:
                 if score < min_score:
-                    min_index_proxy = index
+                    min_index_proxy = i
                     min_score = score
 
         return min_index_proxy
@@ -240,7 +241,7 @@ class Instance:
             return res
 
     @staticmethod
-    def is_valid_proxy(proxy, timeout=2):
+    def is_valid_proxy(proxy, timeout=1):
         """
         :param proxy:
         :param timeout:
@@ -280,7 +281,7 @@ class Instance:
             return 1000
 
     @staticmethod
-    def test_no_proxy(timeout=2):
+    def test_no_proxy(timeout=1):
         xigua_headers = {
             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
             'accept-encoding': 'gzip, deflate, br',
@@ -408,16 +409,51 @@ class Instance:
     def track(self):
         now = datetime.now()
         with Pool(self._pool_size) as p:
-            video_pages = p.map(VideoPage, self.new_videos)
+            if self.proxies_use:
+                video_pages = p.starmap(VideoPage, product(self.new_videos, self.proxy))
+            else:
+                video_pages = p.map(VideoPage, self.new_videos)
+
+        # 是否需要换代理的flag
+        need_change_proxy = False
         for video_page in video_pages:
-            if not video_page.is_finish:
-                continue
-            # assert isinstance(video_page, VideoPage)
-            t = Tempor(video_page.video_id, now,
-                       video_page.views, video_page.likes,
-                       video_page.dislikes, video_page.comments)
-            db.insert(t, is_commit=False)
+            # 说明出了问题
+            if video_page.is_finish != 1:
+                if video_page.is_finish == 3:
+                    need_change_proxy = True
+            else:
+                t = Tempor(video_page.video_id, now,
+                           video_page.views, video_page.likes,
+                           video_page.dislikes, video_page.comments)
+                db.insert(t, is_commit=False)
         db.conn.commit()
+
+        if need_change_proxy:
+            if self.proxies_use:
+                if self.test_no_proxy():
+                    self.proxies_use = False
+                else:
+                    proxy = Instance.get_proxies(count=8)
+                    if proxy is None:
+                        self.proxy = Instance.get_proxies(count=8)
+                        if self.proxy is None:
+                            self.proxies_use = False
+                        else:
+                            self.proxies_use = True
+                    else:
+                        self.proxy = proxy
+                        self.proxies_use = True
+            else:
+                proxy = Instance.get_proxies(count=8)
+                if proxy is None:
+                    self.proxy = Instance.get_proxies(count=8)
+                    if self.proxy is None:
+                        self.proxies_use = False
+                    else:
+                        self.proxies_use = True
+                else:
+                    self.proxy = proxy
+                    self.proxies_use = True
 
 
 def tick():
@@ -427,15 +463,18 @@ def tick():
 def single_scheduler():
     global job_instance
     global all_user
+    beg = time.time()
     job_instance = Instance()
     del all_user
     if len(job_instance.new_videos) < 120:
-        print('video number too small = {}, so exit！！！'.format(len(job_instance.new_videos)))
-        # 退出
+        print(
+            'find cost {}; video number too small = {}, exit.'.format(time.time() - beg, len(job_instance.new_videos)))
         return
     else:
+        print('find cost {}; there are {} video will be track in this process.'.format(time.time() - beg,
+                                                                                       len(job_instance.new_videos)))
         scheduler = BlockingScheduler()
-        scheduler.add_executor('processpool')
+        # scheduler.add_executor('processpool')
         scheduler.add_job(tick, 'interval', seconds=XConfig.TRACK_SPAN)
         try:
             scheduler.start()

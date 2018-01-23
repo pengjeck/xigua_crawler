@@ -16,7 +16,8 @@ class VideoPage:
     parse video page content
     """
 
-    def __init__(self, video_id):
+    def __init__(self, video_id, proxies=None):
+        self.proxies = proxies
         self.video_id = video_id
         self.time = None
         self.views = -1
@@ -24,7 +25,13 @@ class VideoPage:
         self.dislikes = -1
         self.comments = -1
         self.data = ''
-        self.is_finish = False
+        """
+        1 没有错误
+        2 网络错误
+        3 请求错误，应该是被网站拦截了
+        4 其他错误
+        """
+        self.status = 1
 
         self.setup()
 
@@ -42,25 +49,35 @@ class VideoPage:
         video_url = 'https://www.ixigua.com/a{}'.format(self.video_id)
 
         try:
-            req = requests.get(url=video_url,
-                               headers=headers,
-                               timeout=XConfig.TIMEOUT)
+            if self.proxies is None:
+                req = requests.get(url=video_url,
+                                   headers=headers,
+                                   timeout=XConfig.TIMEOUT)
+            else:
+                req = requests.get(url=video_url,
+                                   proxies=self.proxies,
+                                   headers=headers,
+                                   timeout=XConfig.TIMEOUT)
             self.data = req.text
             self.parse_views()
             self.parse_likes()
             self.parse_dislikes()
             self.parse_comments()
-            self.is_finish = True
+            self.status = 1  # 没有错误
         except requests.HTTPError as http_e:
             logging.error('network error when request video page. Reason:{}'.format(http_e))
-            self.is_finish = False
+            self.status = 2
         except requests.Timeout:
             logging.error('time out when request video page. ')
-            self.is_finish = False
+            self.status = 2
         except AttributeError as attr_e:
-            record_data(self.data)
-            logging.error('attribution error occur. Reason:{}'.format(attr_e))
-            self.is_finish = False
+            # record_data(self.data, type='html')
+            if len(self.data) < 200:
+                logging.error('block by the website. request content : {}'.format(self.data))
+                self.status = 3
+            else:
+                logging.error('attribution error occur. Reason:{}'.format(attr_e))
+                self.status = 4
 
     def parse_views(self):
         """parse view count to self.views"""
