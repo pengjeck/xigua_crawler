@@ -78,6 +78,9 @@ class VideoPage:
             else:
                 logging.error('attribution error occur. Reason:{}'.format(attr_e))
                 self.status = 4
+        except requests.exceptions.ProxyError:
+            logging.error('proxy error when request video page')
+            self.status = 3
 
     def parse_views(self):
         """parse view count to self.views"""

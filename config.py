@@ -18,11 +18,12 @@ class XConfig:
     USER_AVATAR_PATH = '/home/pj/datum/GraduationProject/dataset/xigua/user_avatar/'
     LOGGING_PATH = '/home/pj/datum/GraduationProject/dataset/xigua/log'
     INDEX_DB_FILE = '/home/pj/datum/GraduationProject/dataset/xigua/database/xigua{}.db'
+    DB_FILE = '/home/pj/datum/GraduationProject/dataset/xigua/xigua.db'
 
     IS_TESTING = True
 
     TRACK_SPAN = 900  # 15 * 60 = 200 minute. 默认15分钟记录一次
-    TIMEOUT = 2  # 3秒的超时时间
+    TIMEOUT = 3  # 3秒的超时时间
 
     BEFORE_TIMEDELTA = timedelta(minutes=10)  # 10分钟
 

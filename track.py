@@ -49,35 +49,7 @@ class Instance:
         self.proxies_use = False
 
         # 已经把第一次的记录放进去了
-        # self.get_new_videos()
-
-    def get_users_url(self, user_ids):
-        """
-        从user_id中提取用户页面的url
-        :param user_ids: 用户id
-        :return:
-        """
-        if not isinstance(user_ids, (list, tuple)):
-            logger.error('user_ids must be list or tuple in func=get_user_url')
-        user_urls = []
-        pre_params = {
-            'to_user_id': '',
-            'format': 'json'
-        }
-        for user_id in user_ids:
-            pre_params['to_user_id'] = user_id
-            user_urls.append(Instance._url_join(self._base_user_url, pre_params))
-        return user_urls
-
-    def get_user_url(self, user_id):
-        """
-        :return:
-        """
-        params = {
-            'to_user_id': user_id,
-            'format': 'json'
-        }
-        return Instance._url_join(self._base_user_url, params)
+        self.get_new_videos()
 
     @staticmethod
     def _url_join(base_url, params):
@@ -154,7 +126,7 @@ class Instance:
         db.conn.commit()
 
     @staticmethod
-    def get_proxies(count=8):
+    def get_proxies(count=6):
         base_url = 'http://www.mogumiao.com/proxy/api/get_ip_al'
         params = {
             'appKey': '7f52750cc46548b7b316bfaf73792f70',
@@ -211,37 +183,7 @@ class Instance:
         return min_index_proxy
 
     @staticmethod
-    def get_proxy(count=1):
-        base_url = 'http://www.mogumiao.com/proxy/api/get_ip_al'
-        params = {
-            'appKey': '7f52750cc46548b7b316bfaf73792f70',
-            'count': count,
-            'expiryDate': 5,
-            'format': 1
-        }
-        res = {}
-        try:
-            r = requests.get(base_url, params)
-            if r.status_code != 200:
-                logger.error('cannot get proxy from {}'.format(base_url))
-                return res
-            data = json.loads(r.text)
-            if data['code'] != '0':
-                logger.error('{} server error'.format(base_url))
-                return res
-
-            proxy = 'http://{}:{}'.format(data['msg'][0]['ip'], data['msg'][0]['port'])
-            res['http'] = proxy
-            res['https'] = proxy
-            return res
-        except (requests.HTTPError, requests.ConnectionError,
-                requests.Timeout, json.JSONDecodeError):
-            return {}
-        except KeyError:
-            return res
-
-    @staticmethod
-    def is_valid_proxy(proxy, timeout=1):
+    def is_valid_proxy(proxy, timeout=1.5):
         """
         :param proxy:
         :param timeout:
@@ -257,15 +199,10 @@ class Instance:
             'user-agent': 'Mozilla/5.0 (Linux; Android 5.0; SM-G900P Build/LRX21T) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Mobile Safari/537.36',
         }
 
-        xigua_url = 'http://m.365yg.com/video/app/user/home/'
+        xigua_url = 'https://m.ixigua.com/video/app/user/home/'
         xigua_params = {
             'to_user_id': '6597794261',
-            'device_id': '42136171291',
             'format': 'json',
-            'app': 'video_article',
-            'utm_source': 'copy_link',
-            'utm_medium': 'android',
-            'utm_campaign': 'client_share',
         }
         try:
             beg_time = time.time()
@@ -291,15 +228,10 @@ class Instance:
             'upgrade-insecure-requests': '1',
             'user-agent': 'Mozilla/5.0 (Linux; Android 5.0; SM-G900P Build/LRX21T) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Mobile Safari/537.36',
         }
-        xigua_url = 'http://m.365yg.com/video/app/user/home/'
+        xigua_url = 'https://m.ixigua.com/video/app/user/home/'
         xigua_params = {
             'to_user_id': '6597794261',
-            'device_id': '42136171291',
             'format': 'json',
-            'app': 'video_article',
-            'utm_source': 'copy_link',
-            'utm_medium': 'android',
-            'utm_campaign': 'client_share',
         }
         try:
             req = requests.get(url=xigua_url,
@@ -312,20 +244,6 @@ class Instance:
                 return False
         except requests.Timeout:
             return False
-
-    @staticmethod
-    def update_proxy():
-        for i in range(10):
-            if Instance.test_no_proxy():
-                # 经过测试，没有代理是可以正常访问的
-                return None  # 设置没有代理的模式
-
-            proxy = Instance.get_proxy()
-            if Instance.is_valid_proxy(proxy):
-                # 测试代理是否有效，如果有效的话返回该代理。
-                return proxy
-        # 10个代理都没用就gg了
-        return None
 
     def _get_new_video(self, user_id):
         """
@@ -433,9 +351,9 @@ class Instance:
                 if self.test_no_proxy():
                     self.proxies_use = False
                 else:
-                    proxy = Instance.get_proxies(count=8)
+                    proxy = Instance.get_proxies()
                     if proxy is None:
-                        self.proxy = Instance.get_proxies(count=8)
+                        self.proxy = Instance.get_proxies()
                         if self.proxy is None:
                             self.proxies_use = False
                         else:
@@ -444,9 +362,9 @@ class Instance:
                         self.proxy = proxy
                         self.proxies_use = True
             else:
-                proxy = Instance.get_proxies(count=8)
+                proxy = Instance.get_proxies()
                 if proxy is None:
-                    self.proxy = Instance.get_proxies(count=8)
+                    self.proxy = Instance.get_proxies()
                     if self.proxy is None:
                         self.proxies_use = False
                     else:
