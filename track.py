@@ -218,8 +218,8 @@ def single_scheduler():
                                                                        len(job_instance.new_videos)))
         scheduler = BlockingScheduler()
         # scheduler.add_executor('processpool')
-        # scheduler.add_job(tick, 'interval', seconds=XConfig.TRACK_SPAN)
-        scheduler.add_job(tick, 'interval', seconds=300)
+        scheduler.add_job(tick, 'interval', seconds=XConfig.TRACK_SPAN)
+        # scheduler.add_job(tick, 'interval', seconds=300)
         try:
             scheduler.start()
         except (KeyboardInterrupt, SystemExit):
@@ -246,6 +246,5 @@ atexit.register(at_exit)
 job_instance = None
 all_user = load_all_user()
 index = int(sys.argv[1])
-# index = 0
 session = get_session(index)
 single_scheduler()

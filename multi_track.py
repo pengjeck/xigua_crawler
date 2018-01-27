@@ -3,6 +3,7 @@
 import subprocess
 import time
 import atexit
+import sys
 
 commands = [
     '/home/pj/datum/GraduationProject/pyenv/bin/python',
@@ -20,7 +21,9 @@ def at_exit():
 
 atexit.register(at_exit)
 
-for i in range(15):
+beg_index = int(sys.argv[1])
+end_index = int(sys.argv[2])
+for i in range(beg_index, end_index):
     beg = time.time()
     commands[2] = str(i)
     sub_p = subprocess.Popen(commands)
