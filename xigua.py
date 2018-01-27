@@ -16,8 +16,7 @@ class VideoPage:
     parse video page content
     """
 
-    def __init__(self, video_id, proxies=None):
-        self.proxies = proxies
+    def __init__(self, video_id):
         self.video_id = video_id
         self.time = None
         self.views = -1
@@ -49,15 +48,10 @@ class VideoPage:
         video_url = 'https://www.ixigua.com/a{}'.format(self.video_id)
 
         try:
-            if self.proxies is None:
-                req = requests.get(url=video_url,
-                                   headers=headers,
-                                   timeout=XConfig.TIMEOUT)
-            else:
-                req = requests.get(url=video_url,
-                                   proxies=self.proxies,
-                                   headers=headers,
-                                   timeout=XConfig.TIMEOUT)
+            req = requests.get(url=video_url,
+                               headers=headers,
+                               timeout=XConfig.TIMEOUT)
+
             self.data = req.text
             self.parse_views()
             self.parse_likes()
