@@ -294,7 +294,7 @@ class Instance:
             now = time.time()
             for item_v in data['data']:
                 try:
-                    # 五分钟以内上传的视频都可以算作新视频
+                    # 六分钟以内上传的视频都可以算作新视频
                     if now - int(item_v['publish_time']) < 360:
                         video_id = item_v['group_id_str']
                         res['video_ids'].append(video_id)
@@ -326,7 +326,7 @@ class Instance:
 
     def track(self):
         now = datetime.now()
-        with Pool(self._pool_size) as p:
+        with Pool(30) as p:
             if self.proxies_use:
                 video_pages = p.starmap(VideoPage, product(self.new_videos, self.proxy))
             else:
@@ -351,9 +351,9 @@ class Instance:
                 if self.test_no_proxy():
                     self.proxies_use = False
                 else:
-                    proxy = Instance.get_proxies()
+                    proxy = Instance.get_proxies(3)
                     if proxy is None:
-                        self.proxy = Instance.get_proxies()
+                        self.proxy = Instance.get_proxies(3)
                         if self.proxy is None:
                             self.proxies_use = False
                         else:
@@ -362,9 +362,9 @@ class Instance:
                         self.proxy = proxy
                         self.proxies_use = True
             else:
-                proxy = Instance.get_proxies()
+                proxy = Instance.get_proxies(3)
                 if proxy is None:
-                    self.proxy = Instance.get_proxies()
+                    self.proxy = Instance.get_proxies(3)
                     if self.proxy is None:
                         self.proxies_use = False
                     else:

@@ -23,7 +23,7 @@ class XConfig:
     IS_TESTING = True
 
     TRACK_SPAN = 900  # 15 * 60 = 200 minute. 默认15分钟记录一次
-    TIMEOUT = 3  # 3秒的超时时间
+    TIMEOUT = 10  # 3秒的超时时间
 
     BEFORE_TIMEDELTA = timedelta(minutes=10)  # 10分钟
 
@@ -83,6 +83,12 @@ class XConfig:
         get logging file full path
         """
         return os.path.join(XConfig.LOGGING_PATH, '{}.txt'.format(int(time.time())))
+
+    @staticmethod
+    def get_proxy_bill_id():
+        with open('proxy/id.txt') as f:
+            line = f.readline().strip()
+        return line
 
 
 logger = logging.getLogger('base')

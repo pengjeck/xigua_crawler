@@ -2,7 +2,6 @@
 
 import re
 import requests
-import json
 from apscheduler.schedulers.blocking import BlockingScheduler
 from datetime import datetime
 from sqlalchemy import Column, Integer, create_engine, TEXT, DateTime

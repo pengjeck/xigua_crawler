@@ -5,6 +5,7 @@ import json
 from config import logger, XConfig
 from utilities import record_data
 import time
+import multiprocessing
 
 headers = {
     'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
@@ -306,10 +307,89 @@ def is_valid_proxy(proxy, timeout=2):
 
 # endregion
 
+
+# region change ua
+
+def test_ua_page(ua):
+    headers = {
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+        'accept-encoding': 'gzip, deflate, br',
+        'accept-language': 'en-US,en;q=0.9,pt;q=0.8,zh-CN;q=0.7,zh;q=0.6',
+        'cache-control': 'max-age=0',
+        'upgrade-insecure-requests': '1',
+        'user-agent': ua
+    }
+
+    video_url = 'https://www.ixigua.com/a{}'.format('6512907124689863172')
+
+    try:
+        req = requests.get(video_url,
+                           headers=headers,
+                           timeout=XConfig.TIMEOUT)
+        if req.status_code == 403:
+            return 1
+        parse_views(req.text)
+        parse_likes(req.text)
+        parse_dislikes(req.text)
+        parse_comments(req.text)
+        return 0
+    except requests.ConnectionError:
+        return 1
+    except requests.HTTPError:
+        return 1
+    except AttributeError:
+        return 1
+
+
+# endregion
+#
+# f = open('tool/1000-pc.log', 'r')
+# count = 0
+# times = 0
+# ua = f.readline().strip()
+# while True:
+#     times += 1
+#     state_code = test_ua_page(ua)
+#     if state_code == 1:
+#         ua = f.readline().strip()
+#         count += 1
+#     print("error / times = {} / {}".format(count, times))
+#     # time.sleep(1)
+
+
 count = 0
 times = 0
+ua_index = 1
+
+
+def get_ua():
+    global ua_index
+    if ua_index == 1:
+        return 'Mozilla/5.0'
+    elif ua_index == 2:
+        return 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36'
+    elif ua_index == 3:
+        return 'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:40.0) Gecko/20100101 Firefox/40.0'
+    elif ua_index == 4:
+        return 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/534.34 (KHTML, like Gecko) Qt/4.8.2'
+    elif ua_index == 5:
+        return 'Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.137 Safari/537.36'
+
+
 while True:
     times += 1
-    count += test_video_page()
+    res = test_ua_page(get_ua())
+    if res == 1:
+        count += 1
+        if ua_index == 1:
+            ua_index = 2
+        elif ua_index == 2:
+            ua_index = 3
+        elif ua_index == 3:
+            ua_index = 4
+        elif ua_index == 4:
+            ua_index = 5
+        elif ua_index == 5:
+            ua_index = 1
     print("error / times = {} / {}".format(count, times))
     # time.sleep(1)

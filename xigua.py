@@ -69,7 +69,7 @@ class VideoPage:
             self.status = 2
         except requests.Timeout:
             logging.error('time out when request video page. ')
-            self.status = 2
+            self.status = 3
         except AttributeError as attr_e:
             # record_data(self.data, type='html')
             if len(self.data) < 200:
