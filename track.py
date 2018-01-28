@@ -208,7 +208,7 @@ def single_scheduler():
     beg = time.time()
     job_instance = Instance()
     del all_user
-    if len(job_instance.new_videos) < 1:
+    if len(job_instance.new_videos) < 100:
         print(
             'find cost {}; video number too small = {}, exit.'.format(time.time() - beg,
                                                                       len(job_instance.new_videos)))

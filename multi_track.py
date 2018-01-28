@@ -29,7 +29,7 @@ for i in range(beg_index, end_index):
     sub_p = subprocess.Popen(commands)
     sub_ps.append(sub_p)
     print('{}th setup!'.format(i))
-    time.sleep(900 - (time.time() - beg))
+    time.sleep(600 - (time.time() - beg))
 
 while True:
     print('all process is running.')
