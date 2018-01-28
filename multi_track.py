@@ -22,8 +22,7 @@ def at_exit():
 
 atexit.register(at_exit)
 
-beg_index = int(sys.argv[1])
-end_index = int(sys.argv[2])
+end_index = int(sys.argv[1])
 count = 0
 while True:
     beg = time.time()
@@ -32,10 +31,12 @@ while True:
     print('{}th setup!'.format(count))
     time.sleep(600 - (time.time() - beg))
     # 上面一个程序肯定已经退出了
-    pid_path = 'data/pids/{}'.format(sub_p)
+    pid_path = 'data/pids/{}'.format(sub_p.pid)
     if os.path.isfile(pid_path):
-        count += 1
         sub_ps.append(sub_p)
+        count += 1
+        if count == end_index:
+            break
 
 
 while True:
