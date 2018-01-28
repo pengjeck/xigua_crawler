@@ -3,6 +3,8 @@
 import subprocess
 import time
 import atexit
+import sys
+import os
 
 commands = [
     '/home/pj/datum/GraduationProject/pyenv/bin/python',
@@ -20,13 +22,22 @@ def at_exit():
 
 atexit.register(at_exit)
 
-for i in range(15):
+end_index = int(sys.argv[1])
+count = 0
+while True:
     beg = time.time()
-    commands[2] = str(i)
+    commands[2] = str(count)
     sub_p = subprocess.Popen(commands)
-    sub_ps.append(sub_p)
-    print('{}th setup!'.format(i))
-    time.sleep(900 - (time.time() - beg))
+    print('{}th setup!'.format(count))
+    time.sleep(600 - (time.time() - beg))
+    # 上面一个程序肯定已经退出了
+    pid_path = 'data/pids/{}'.format(sub_p.pid)
+    if os.path.isfile(pid_path):
+        sub_ps.append(sub_p)
+        count += 1
+        if count == end_index:
+            break
+
 
 while True:
     print('all process is running.')

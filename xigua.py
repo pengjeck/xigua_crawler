@@ -3,12 +3,9 @@ xigua request module
 """
 # coding: utf-8
 import re
-from datetime import datetime
-import json
 import requests
-from utilities import record_data
-from video import Video
 from config import logging, XConfig
+import random
 
 
 class VideoPage:
@@ -16,8 +13,7 @@ class VideoPage:
     parse video page content
     """
 
-    def __init__(self, video_id, proxies=None):
-        self.proxies = proxies
+    def __init__(self, video_id):
         self.video_id = video_id
         self.time = None
         self.views = -1
@@ -25,6 +21,8 @@ class VideoPage:
         self.dislikes = -1
         self.comments = -1
         self.data = ''
+
+        self.ua = VideoPage.get_ua()
         """
         1 没有错误
         2 网络错误
@@ -35,6 +33,15 @@ class VideoPage:
 
         self.setup()
 
+    @staticmethod
+    def get_ua():
+        ua_index = random.randint(0, 300)
+        f = open(XConfig.UA_DB_PATH, 'r')
+        # 这个过程可能会比较耗时
+        for _ in range(ua_index):
+            f.readline()
+        return f.readline().strip()
+
     def setup(self):
         """setup"""
         headers = {
@@ -43,21 +50,19 @@ class VideoPage:
             'accept-language': 'en-US,en;q=0.9,pt;q=0.8,zh-CN;q=0.7,zh;q=0.6',
             'cache-control': 'max-age=0',
             'upgrade-insecure-requests': '1',
-            'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36',
+            'user-agent': self.ua
         }
 
         video_url = 'https://www.ixigua.com/a{}'.format(self.video_id)
 
         try:
-            if self.proxies is None:
-                req = requests.get(url=video_url,
-                                   headers=headers,
-                                   timeout=XConfig.TIMEOUT)
-            else:
-                req = requests.get(url=video_url,
-                                   proxies=self.proxies,
-                                   headers=headers,
-                                   timeout=XConfig.TIMEOUT)
+            req = requests.get(url=video_url,
+                               headers=headers,
+                               timeout=XConfig.TIMEOUT)
+            if req.status_code == 404:
+                self.status = 4
+                return
+
             self.data = req.text
             self.parse_views()
             self.parse_likes()
@@ -73,14 +78,15 @@ class VideoPage:
         except AttributeError as attr_e:
             # record_data(self.data, type='html')
             if len(self.data) < 200:
-                logging.error('block by the website. request content : {}'.format(self.data))
-                self.status = 3
+                # 换一个ua再来一次
+                self.ua = self.get_ua()
+                self.setup()
+                if self.status != 1:
+                    logging.error('block by the website. request content : {}'.format(self.data))
+                    self.status = 3
             else:
                 logging.error('attribution error occur. Reason:{}'.format(attr_e))
                 self.status = 4
-        except requests.exceptions.ProxyError:
-            logging.error('proxy error when request video page')
-            self.status = 3
 
     def parse_views(self):
         """parse view count to self.views"""

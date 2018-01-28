@@ -116,3 +116,5 @@ dbs
 
 proxy/id.txt
 
+data/pids/*.txt
+

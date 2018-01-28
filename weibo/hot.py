@@ -53,7 +53,7 @@ def tick():
 if __name__ == '__main__':
     instance = Instance()
     scheduler = BlockingScheduler()
-    scheduler.add_job(tick, 'interval', seconds=30)
+    scheduler.add_job(tick, 'interval', seconds=60)
 
     try:
         scheduler.start()
