@@ -32,7 +32,7 @@ import sqlite3
 from apscheduler.schedulers.blocking import BlockingScheduler
 import sys
 import atexit
-
+import os
 
 class Instance:
     """
@@ -208,7 +208,7 @@ def single_scheduler():
     beg = time.time()
     job_instance = Instance()
     del all_user
-    if len(job_instance.new_videos) < 100:
+    if len(job_instance.new_videos) < 120:
         print(
             'find cost {}; video number too small = {}, exit.'.format(time.time() - beg,
                                                                       len(job_instance.new_videos)))
@@ -237,10 +237,20 @@ def load_all_user():
 
 def at_exit():
     global session
+    path = 'data/pids/{}'.format(os.getpid())
+    if os.path.isfile(path):
+        os.remove(path)
     print('process exited!!')
     session.close()
 
 
+
+def init():
+    pid = str(os.getpid())
+    with open('data/pids/{}'.format(pid), 'w') as f:
+        f.write(pid)
+
+init()
 atexit.register(at_exit)
 
 job_instance = None
